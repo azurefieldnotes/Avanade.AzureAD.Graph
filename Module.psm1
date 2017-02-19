@@ -3,6 +3,10 @@
     Simple REST Wrappers for the Azure AD Graph
 #>
 
+<#
+    .SYNOPSIS
+        Wrapper method for paging OData REST calls
+#>
 Function GetAzureGraphODataResult
 {
     [CmdletBinding(ConfirmImpact='None')]
@@ -61,7 +65,7 @@ Function GetAzureGraphODataResult
                         if($ArmResult.PSobject.Properties.name -match $NextLinkProperty)
                         {
                             $Uri=$ArmResult|Select-Object -ExpandProperty $NextLinkProperty
-                            Write-Verbose "[GetArmODataResult] Total Items:$TotalItems. More items available @ $Uri"
+                            Write-Verbose "[GetAzureGraphODataResult] Total Items:$TotalItems. More items available @ $Uri"
                         }
                         else
                         {
@@ -71,7 +75,7 @@ Function GetAzureGraphODataResult
                     else
                     {
                         $Uri=$null
-                        Write-Verbose "[GetArmODataResult] Stopped iterating at $ResultPages pages. Iterated Items:$TotalItems More data available?:$([string]::IsNullOrEmpty($ArmResult.value))"
+                        Write-Verbose "[GetAzureGraphODataResult] Stopped iterating at $ResultPages pages. Iterated Items:$TotalItems More data available?:$([string]::IsNullOrEmpty($ArmResult.value))"
                     }
                 }
                 else
@@ -79,7 +83,7 @@ Function GetAzureGraphODataResult
                     if($ArmResult.PSobject.Properties.name -match $NextLinkProperty)
                     {
                         $Uri=$ArmResult|Select-Object -ExpandProperty $NextLinkProperty
-                        Write-Verbose "[GetArmODataResult] Total Items:$TotalItems. More items available @ $Uri"
+                        Write-Verbose "[GetAzureGraphODataResult] Total Items:$TotalItems. More items available @ $Uri"
                     }
                     else
                     {
@@ -95,7 +99,7 @@ Function GetAzureGraphODataResult
         }
         catch
         {
-            Write-Warning "[GetArmODataResult]Error $Uri $_"
+            Write-Warning "[GetAzureGraphODataResult]Error $Uri $_"
             $Uri=$null
         }
     } while ($Uri -ne $null)
@@ -139,10 +143,18 @@ Function Get-AzureGraphReportMetadata
     }
     PROCESS
     {
-        foreach ($item in $TenantName) {
-            $GraphUriBld.Path="$item/reports/`$metadata"
-            $GraphResult=Invoke-RestMethod -Uri $GraphUriBld.Uri -Headers $Headers -ContentType 'application/json'
-            Write-Output $GraphResult
+        foreach ($item in $TenantName)
+        {
+            try
+            {
+                $GraphUriBld.Path="$item/reports/`$metadata"
+                $GraphResult=Invoke-RestMethod -Uri $GraphUriBld.Uri -Headers $Headers -ContentType 'application/json'
+                Write-Output $GraphResult
+            }
+            catch
+            {
+                Write-Warning "[Get-AzureGraphReportMetadata] $item api-version=$GraphApiVersion $_"
+            }
         } 
     }
     END
@@ -206,25 +218,28 @@ Function Get-AzureGraphAuditEvent
     }
     PROCESS
     {
-        $GraphUriBld.Path="$TenantName/activities/audit"
-        if ([String]::IsNullOrEmpty($Filter) -eq $false) {
-            $GraphQuery+="`$filter=$Filter"
-        }    
-        if ($Top -gt 0) {
-            $GraphQuery+="`$Top=$Top"
-        }
-        $GraphUriBld.Query=$GraphQuery
-        $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
-            -ContentType 'application/json' -LimitResultPages $LimitResultPages `
-            -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'        
-        
-        # $Result=GetAzureGraphResult -AccessToken $AccessToken `
-        #     -LimitResultPages $LimitResultPages -Top $Top `
-        #     -UriPath "$TenantName/activities/audit" `
-        #     -Filter $Filter
-        #     -GraphApiEndpoint $GraphApiEndpoint `
-        #     -GraphApiVersion $GraphApiVersion
-        Write-Output $Result            
+        foreach ($Tenant in $TenantName)
+        {
+            try
+            {
+                $GraphUriBld.Path="$Tenant/activities/audit"
+                if ([String]::IsNullOrEmpty($Filter) -eq $false) {
+                    $GraphQuery+="`$filter=$Filter"
+                }    
+                if ($Top -gt 0) {
+                    $GraphQuery+="`$Top=$Top"
+                }
+                $GraphUriBld.Query=$GraphQuery
+                $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
+                    -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+                Write-Output $Result
+            }
+            catch
+            {
+                Write-Warning "[Get-AzureGraphAuditEvent] $Tenant api-version=$GraphApiVersion $_"
+            }              
+        }  
     }
     END
     {
@@ -255,6 +270,9 @@ Function Get-AzureGraphSigninEvent
     [CmdletBinding()]
     param
     (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [String[]]
+        $TenantName,        
         [Parameter(Mandatory=$true)]
         [String]
         $AccessToken,
@@ -265,10 +283,7 @@ Function Get-AzureGraphSigninEvent
         [Parameter(Mandatory=$false)]
         [ValidateRange(0,1000)]
         [int]
-        $Top,        
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
-        [String[]]
-        $TenantName,
+        $Top,
         [Parameter(Mandatory=$false)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
@@ -286,26 +301,29 @@ Function Get-AzureGraphSigninEvent
         $GraphQuery="api-version=$GraphApiVersion"
     }
     PROCESS
-    {        
-        $GraphUriBld.Path="$TenantName/activities/signinEvents"
-        if ([String]::IsNullOrEmpty($Filter) -eq $false) {
-            $GraphQuery+="`$filter=$Filter"
-        }    
-        if ($Top -gt 0) {
-            $GraphQuery+="`$top=$Top"
-        }
-        $GraphUriBld.Query=$GraphQuery
-        $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
-            -ContentType 'application/json' -LimitResultPages $LimitResultPages `
-            -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
-
-        # $Result=GetAzureGraphResult -AccessToken $AccessToken `
-        #     -LimitResultPages $LimitResultPages -Top $Top `
-        #     -UriPath "$TenantName/activities/signinEvents" `
-        #     -Filter $Filter
-        #     -GraphApiEndpoint $GraphApiEndpoint `
-        #     -GraphApiVersion $GraphApiVersion
-        Write-Output $Result            
+    {
+        foreach ($Tenant in $TenantName)
+        {
+            try
+            {
+                $GraphUriBld.Path="$Tenant/activities/signinEvents"
+                if ([String]::IsNullOrEmpty($Filter) -eq $false) {
+                    $GraphQuery+="`$filter=$Filter"
+                }    
+                if ($Top -gt 0) {
+                    $GraphQuery+="`$top=$Top"
+                }
+                $GraphUriBld.Query=$GraphQuery
+                $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
+                    -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+                Write-Output $Result                   
+            }
+            catch
+            {
+                Write-Warning "[Get-AzureGraphSigninEvent] $Tenant api-version=$GraphApiVersion $_"    
+            }
+        }         
     }
     END
     {
@@ -392,20 +410,27 @@ Function Get-AzureGraphReport
         {
             foreach ($item in $Element)
             {
-                $GraphUriBld.Path="$Tenant/reports/$Element"
-                if ([String]::IsNullOrEmpty($Filter) -eq $false) {
-                    $GraphQuery+="&`$filter=$Filter"
-                }    
-                if ($Top -gt 0) {
-                    $GraphQuery+="&`$top=$Top"
-                }
-                $GraphUriBld.Query=$GraphQuery
+                try
+                {
+                    $GraphUriBld.Path="$Tenant/reports/$Element"
+                    if ([String]::IsNullOrEmpty($Filter) -eq $false) {
+                        $GraphQuery+="&`$filter=$Filter"
+                    }    
+                    if ($Top -gt 0) {
+                        $GraphQuery+="&`$top=$Top"
+                    }
+                    $GraphUriBld.Query=$GraphQuery
                     $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
-                        -ContentType 'application/json' -LimitResultPages $LimitResultPages `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
-                    Write-Output $Result
-                }            
+                            -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                            -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+                    Write-Output $Result                    
+                }
+                catch
+                {
+                    Write-Warning "[Get-AzureGraphReport] $Tenant $item api-version=$GraphApiVersion $_"
+                }
             }
+        }
     }
     END
     {
