@@ -106,7 +106,7 @@ PrivateData = @{
         ProjectUri = 'https://github.com/azurefieldnotes/Avanade.AzureAD.Graph'
 
         # A URL to an icon representing this module.
-        IconUri = 'https://azurefieldnotesblog.blob.core.windows.net/wp-content/2016/08/poshoauth-300x196.png'
+        IconUri = 'https://azurefieldnotesblog.blob.core.windows.net/wp-content/2017/02/AzureAD.png'
 
         # ReleaseNotes of this module
         # ReleaseNotes = ''
