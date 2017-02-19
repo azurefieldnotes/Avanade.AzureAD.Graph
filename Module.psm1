@@ -117,7 +117,7 @@ Function GetAzureGraphODataResult
     .PARAMETER GraphApiVersion
         The Azure Graph API Version        
 #>
-Function Get-AzureADADGraphReportMetadata
+Function Get-AzureADGraphReportMetadata
 {
     [CmdletBinding()]
     param
