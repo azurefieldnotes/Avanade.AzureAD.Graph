@@ -117,7 +117,7 @@ Function GetAzureGraphODataResult
     .PARAMETER GraphApiVersion
         The Azure Graph API Version        
 #>
-Function Get-AzureGraphReportMetadata
+Function Get-AzureADADGraphReportMetadata
 {
     [CmdletBinding()]
     param
@@ -153,7 +153,7 @@ Function Get-AzureGraphReportMetadata
             }
             catch
             {
-                Write-Warning "[Get-AzureGraphReportMetadata] $item api-version=$GraphApiVersion $_"
+                Write-Warning "[Get-AzureADGraphReportMetadata] $item api-version=$GraphApiVersion $_"
             }
         } 
     }
@@ -181,7 +181,7 @@ Function Get-AzureGraphReportMetadata
     .PARAMETER GraphApiVersion
         The Azure Graph API Version
 #>
-Function Get-AzureGraphAuditEvent
+Function Get-AzureADGraphAuditEvent
 {
     [CmdletBinding()]
     param
@@ -237,7 +237,7 @@ Function Get-AzureGraphAuditEvent
             }
             catch
             {
-                Write-Warning "[Get-AzureGraphAuditEvent] $Tenant api-version=$GraphApiVersion $_"
+                Write-Warning "[Get-AzureADGraphAuditEvent] $Tenant api-version=$GraphApiVersion $_"
             }              
         }  
     }
@@ -265,7 +265,7 @@ Function Get-AzureGraphAuditEvent
     .PARAMETER GraphApiVersion
         The Azure Graph API Version        
 #>
-Function Get-AzureGraphSigninEvent
+Function Get-AzureADGraphSigninEvent
 {
     [CmdletBinding()]
     param
@@ -321,7 +321,7 @@ Function Get-AzureGraphSigninEvent
             }
             catch
             {
-                Write-Warning "[Get-AzureGraphSigninEvent] $Tenant api-version=$GraphApiVersion $_"    
+                Write-Warning "[Get-AzureADGraphSigninEvent] $Tenant api-version=$GraphApiVersion $_"    
             }
         }         
     }
@@ -351,7 +351,7 @@ Function Get-AzureGraphSigninEvent
     .PARAMETER GraphApiVersion
         The Azure Graph API Version
 #>
-Function Get-AzureGraphReport
+Function Get-AzureADGraphReport
 {
     [CmdletBinding()]
     param
@@ -396,7 +396,7 @@ Function Get-AzureGraphReport
         $GraphApiVersion='beta',
         [Parameter(Mandatory=$false)]
         [String]
-        $Filter        
+        $Filter 
     )
     BEGIN
     {
@@ -427,7 +427,7 @@ Function Get-AzureGraphReport
                 }
                 catch
                 {
-                    Write-Warning "[Get-AzureGraphReport] $Tenant $item api-version=$GraphApiVersion $_"
+                    Write-Warning "[Get-AzureADGraphReport] $Tenant $item api-version=$GraphApiVersion $_"
                 }
             }
         }
@@ -455,9 +455,9 @@ Function Get-AzureGraphReport
     .PARAMETER GraphApiVersion
         The Azure Graph API Version
 #>
-Function Get-AzureGraphOauthPermissionGrant
+Function Get-AzureADGraphOauthPermissionGrant
 {
-    [CmdletBinding()]
+    [CmdletBinding(ConfirmImpact='None')]
     param
     (
         [Parameter(Mandatory=$true)]
@@ -479,11 +479,14 @@ Function Get-AzureGraphOauthPermissionGrant
         $GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false)]
         [String]
-        $GraphApiVersion='beta'    
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $TenantName='myOrganization' 
     )
     $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
     $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
-    $GraphUriBld.Path="myOrganization/oauth2PermissionGrants"
+    $GraphUriBld.Path="$TenantName/oauth2PermissionGrants"
     $GraphQuery="api-version=$GraphApiVersion"
     if ([String]::IsNullOrEmpty($Filter) -eq $false) {
         $GraphQuery+="&`$filter=$Filter"
@@ -497,4 +500,288 @@ Function Get-AzureGraphOauthPermissionGrant
         -ContentType 'application/json' -LimitResultPages $LimitResultPages `
         -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
     Write-Output $Result
+}
+
+<#
+    .SYNOPSIS
+        Retrieves a list of the domains
+    .PARAMETER DomainName
+        The domain name(s)
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API Version
+#>
+Function Get-AzureADGraphDomain
+{
+    [CmdletBinding(ConfirmImpact='None')]
+    param
+    (
+        [Parameter(Mandatory=$false)]
+        [String[]]
+        $DomainName,
+        [Parameter(Mandatory=$true)]
+        [String]
+        $AccessToken,      
+        [Parameter(Mandatory=$false)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+        $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Path="$TenantName/domains"
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($DomainName -ne $null) 
+        {
+            foreach ($Domain in $DomainName)
+            {
+                try
+                {
+                    $GraphUriBld.Path="myOrganization/domains('$Domain')"
+                    $Result=Invoke-RestMethod -Uri $GraphUriBld.Uri -Headers $Headers -ContentType 'application/json'
+                    Write-Output $Result
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphDomain] $Domain api-version=$GraphApiVersion $_"
+                }
+            }    
+        }
+        else
+        {
+            $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
+                -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+            Write-Output $Result
+        }
+    }
+    END
+    {
+
+    }
+}
+
+<#
+    .SYNOPSIS
+        Retrieves a list of the policies
+    .PARAMETER PolicyId
+        The policy id(s)
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API Version
+#>
+Function Get-AzureADGraphPolicy
+{
+    [CmdletBinding(ConfirmImpact='None')]
+    param
+    (
+        [Parameter(Mandatory=$false)]
+        [String[]]
+        $PolicyId,
+        [Parameter(Mandatory=$true)]
+        [String]
+        $AccessToken,      
+        [Parameter(Mandatory=$false)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $GraphApiVersion='1.6',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $TenantName='myOrganization' 
+    )
+    BEGIN
+    {
+        $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Path="$TenantName/policies"
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($PolicyId -ne $null) 
+        {
+            foreach ($Policy in $PolicyId)
+            {
+                try
+                {
+                    $GraphUriBld.Path="myorganization/policies/$Policy"
+                    $Result=Invoke-RestMethod -Uri $GraphUriBld.Uri -Headers $Headers -ContentType 'application/json'
+                    Write-Output $Result
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphPolicy] $Domain api-version=$GraphApiVersion $_"
+                }
+            }    
+        }
+        else
+        {
+            $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
+                -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+            Write-Output $Result
+        }
+    }
+    END
+    {
+
+    }
+}
+
+<#
+    .SYNOPSIS
+        Retrieves a list of the roles
+    .PARAMETER RoleId
+        The policy id(s)
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API Version
+#>
+Function Get-AzureADGraphRole
+{
+    [CmdletBinding(ConfirmImpact='None')]
+    param
+    (
+        [Parameter(Mandatory=$false)]
+        [String[]]
+        $RoleId,
+        [Parameter(Mandatory=$true)]
+        [String]
+        $AccessToken,      
+        [Parameter(Mandatory=$false)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $GraphApiVersion='1.6',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+        $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Path="$TenantName/directoryRoles"
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($RoleId -ne $null) 
+        {
+            foreach ($Role in $RoleId)
+            {
+                try
+                {
+                    $GraphUriBld.Path="myorganization/directoryRoles/$Role"
+                    $Result=Invoke-RestMethod -Uri $GraphUriBld.Uri -Headers $Headers -ContentType 'application/json'
+                    Write-Output $Result
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphRole] $Domain api-version=$GraphApiVersion $_"
+                }
+            }    
+        }
+        else
+        {
+            $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
+                -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+            Write-Output $Result
+        }
+    }
+    END
+    {
+
+    }
+}
+
+<#
+    .SYNOPSIS
+        Retrieves a list of the roles
+    .PARAMETER TemplateId
+        The policy id(s)
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API Version
+#>
+Function Get-AzureADGraphRoleTemplate
+{
+    [CmdletBinding(ConfirmImpact='None')]
+    param
+    (
+        [Parameter(Mandatory=$false)]
+        [String[]]
+        $TemplateId,
+        [Parameter(Mandatory=$true)]
+        [String]
+        $AccessToken,      
+        [Parameter(Mandatory=$false)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $GraphApiVersion='1.6',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+        $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Path="$TenantName/directoryRoleTemplates"
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($TemplateId -ne $null) 
+        {
+            foreach ($Template in $TemplateId)
+            {
+                try
+                {
+                    $GraphUriBld.Path="myorganization/directoryRoleTemplates/$Template"
+                    $Result=Invoke-RestMethod -Uri $GraphUriBld.Uri -Headers $Headers -ContentType 'application/json'
+                    Write-Output $Result
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphRoleTemplate] $Domain api-version=$GraphApiVersion $_"
+                }
+            }    
+        }
+        else
+        {
+            $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
+                -ContentType 'application/json' -LimitResultPages $LimitResultPages `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'
+            Write-Output $Result
+        }
+    }
+    END
+    {
+
+    }
 }
