@@ -85,6 +85,7 @@ Function GetAzureGraphODataResult
                     else
                     {
                         $NextLinkValue=$GraphResult|Select-Object -ExpandProperty $NextLinkProperty
+                        #HACK: Inconsistent nextLink behavior on Graph
                         if ($NextLinkValue -like 'http*') {
                             $UriBld=New-Object System.UriBuilder([Uri]::UnescapeDataString($NextLinkValue))
                         }
@@ -581,9 +582,11 @@ Function Get-AzureADGraphDomain
         }
         else
         {
-            $Result=GetAzureGraphODataResult -Uri $GraphUriBld.Uri -Headers $Headers `
-                -ContentType 'application/json' -LimitResultPages $LimitResultPages `
-                -ValueProperty 'value' -NextLinkProperty 'odata.nextLink'
+            $Result=GetAzureGraphODataResult -Path $GraphUriBld.Path -Headers $Headers `
+                -ContentType 'application/json' `
+                -ValueProperty 'value' -NextLinkProperty 'odata.nextLink' -Filter $Filter `
+                -Top $Top -LimitResultPages $LimitResultPages -GraphApiRoot $GraphApiEndpoint `
+                -GraphApiVersion $GraphApiVersion
             Write-Output $Result
         }
     }
