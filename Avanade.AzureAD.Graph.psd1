@@ -27,10 +27,10 @@ Author = 'Chris Speers'
 CompanyName = 'Avanade'
 
 # Copyright statement for this module
-Copyright = '2016 Avanade'
+Copyright = '© 2016 Avanade, Inc.'
 
 # Description of the functionality provided by this module
-Description = 'Helper functions for obtaining tokens from Azure Active Directory'
+Description = 'Helper functions for working with the Azure Active Directory Graph API'
 
 # Minimum version of the Windows PowerShell engine required by this module
 PowerShellVersion = '3.0'
