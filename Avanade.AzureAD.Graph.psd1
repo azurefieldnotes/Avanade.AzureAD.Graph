@@ -69,10 +69,18 @@ RequiredAssemblies = 'System.Drawing', 'System.Windows.Forms'
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = "*-*"
+FunctionsToExport = @(
+        "Get-AzureADGraphAuditEvent","Get-AzureADGraphDomain","Get-AzureADGraphGroup","Get-AzureADGraphOauthPermissionGrant",
+        "Get-AzureADGraphPolicy","Get-AzureADGraphReport","Get-AzureADGraphReportMetadata","Get-AzureADGraphRole",
+        "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser"
+    )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-CmdletsToExport = @()
+CmdletsToExport = @(
+        "Get-AzureADGraphAuditEvent","Get-AzureADGraphDomain","Get-AzureADGraphGroup","Get-AzureADGraphOauthPermissionGrant",
+        "Get-AzureADGraphPolicy","Get-AzureADGraphReport","Get-AzureADGraphReportMetadata","Get-AzureADGraphRole",
+        "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser"
+    )
 
 # Variables to export from this module
 # VariablesToExport = @()
@@ -109,7 +117,7 @@ PrivateData = @{
         IconUri = 'https://azurefieldnotesblog.blob.core.windows.net/wp-content/2017/02/AzureAD.png'
 
         # ReleaseNotes of this module
-        # ReleaseNotes = ''
+        ReleaseNotes = 'Initial Release. GET only'
 
         # External dependent modules of this module
         ExternalModuleDependencies = 'Microsoft.PowerShell.Utility'
