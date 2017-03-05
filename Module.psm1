@@ -18,7 +18,7 @@ Function GetAzureGraphODataResult
         [System.Uri]
         $GraphApiRoot,
         [Parameter(Mandatory=$true)]
-        [System.Uri]
+        [System.String]
         $Path,        
         [Parameter(Mandatory=$false)]
         [String]
@@ -1056,6 +1056,306 @@ Function Get-AzureADGraphGroup
                 -Top $Top -LimitResultPages $LimitResultPages -GraphApiRoot $GraphApiEndpoint `
                 -GraphApiVersion $GraphApiVersion
             Write-Output $Result
+        }
+    }
+    END
+    {
+
+    }
+}
+
+<#
+    .SYNOPSIS
+        Retrieves details for the tenant
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API version
+    .PARAMETER TenantName
+        The directory tenant name
+#>
+Function Get-AzureADTenantDetails
+{
+    [CmdletBinding(ConfirmImpact='None')]
+    param
+    (
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true)]
+        [String[]]
+        $TenantName='myOrganization',        
+        [Parameter(Mandatory=$true)]
+        [String]
+        $AccessToken,
+        [Parameter(Mandatory=$false)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false)]
+        [String]
+        $GraphApiVersion='beta',
+        [ValidateRange(0,1000)]
+        [Parameter(Mandatory=$false)]
+        [int]
+        $LimitResultPages,
+        [Parameter(Mandatory=$false)]
+        [ValidateRange(0,1000)]
+        [int]
+        $Top
+    )
+    BEGIN
+    {
+
+    }
+    PROCESS
+    {
+        foreach ($item in $TenantName)
+        {
+            try {
+                $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+                $Result=GetAzureGraphODataResult -GraphApiRoot $GraphApiEndpoint -Path "$item/tenantDetails" `
+                    -Headers $Headers -GraphApiVersion $GraphApiVersion -ContentType 'application/json'
+                Write-Output $Result                
+            }
+            catch {
+                Write-Verbose "[Get-AzureADTenantDetails] Error retrieving details for $item $GraphApiVersion $_"   
+            } 
+        }
+    }
+    END
+    {
+
+    }
+}
+
+<#
+    .SYNOPSIS
+        Retrieves an application from the directory
+    .PARAMETER ApplicationId
+        The application id(s)
+    .PARAMETER ApplicationUri
+        The application identifier uri(s)
+    .PARAMETER DisplayName
+        The application display name
+    .PARAMETER Filter
+        The OData filter to be applied
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API version
+    .PARAMETER TenantName
+        The directory tenant name    
+#>
+Function Get-AzureADGraphApplication
+{
+    [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipeline=$true)]
+        [Guid[]]
+        $ApplicationId,
+        [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipeline=$true)]
+        [System.Uri[]]
+        $ApplicationUri,
+        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true)]
+        [System.String[]]
+        $DisplayName,           
+        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [String]
+        $Filter,
+        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppUri')]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppId')]
+        [Parameter(Mandatory=$true,ParameterSetName='displayName')]
+        [String]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query')]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppUri')]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query')]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppUri')]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query')]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppUri')]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [String]
+        $TenantName='myOrganization',
+        [ValidateRange(0,1000)]
+        [Parameter(Mandatory=$false,ParameterSetName='query')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [int]
+        $LimitResultPages,
+        [Parameter(Mandatory=$false,ParameterSetName='query')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [ValidateRange(0,1000)]
+        [int]
+        $Top
+    )
+    BEGIN
+    {
+        $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+        $GraphPath="$TenantName/applications()"
+    }
+    PROCESS
+    {
+        if ($PSCmdlet.ParameterSetName -eq 'query')
+        {
+            $Result=GetAzureGraphODataResult -GraphApiRoot $GraphApiEndpoint -GraphApiVersion $GraphApiVersion `
+                -Path $GraphPath -Headers $Headers -ContentType 'application/json' `
+                -Filter $Filter -Top $Top -LimitResultPages $LimitResultPages
+            if ($Result -ne $null) {
+                Write-Output $Result
+            }
+        }
+        elseif ($PSCmdlet.ParameterSetName -eq 'noquery')
+        {
+            $Result=GetAzureGraphODataResult -GraphApiRoot $GraphApiEndpoint -GraphApiVersion $GraphApiVersion `
+                -Path $GraphPath -Headers $Headers -ContentType 'application/json' `
+                -Top $Top -LimitResultPages $LimitResultPages 
+            if ($Result -ne $null) {
+                Write-Output $Result
+            }
+        }        
+        elseif ($PSCmdlet.ParameterSetName -eq 'byAppUri')
+        {
+            foreach ($Uri in $ApplicationUri)
+            {
+                try
+                {
+                    $UriFilter="identifierUris/any(i:i eq '$($Uri.OriginalString)')"
+                    $Result=GetAzureGraphODataResult -GraphApiRoot $GraphApiEndpoint -GraphApiVersion $GraphApiVersion `
+                        -Path $GraphPath -Headers $Headers -ContentType 'application/json' -Filter $UriFilter               
+                    if ($Result -ne $null) {
+                        Write-Output $Result
+                    }
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphApplication] $GraphApiVersion $_"
+                }
+            }            
+        }
+        elseif ($PSCmdlet.ParameterSetName -eq 'byAppId')
+        {
+            foreach ($Id in $ApplicationId)
+            {
+                try
+                {
+                    $IdFilter="appId eq '$Id'"
+                    $Result=GetAzureGraphODataResult -GraphApiRoot $GraphApiEndpoint -GraphApiVersion $GraphApiVersion `
+                        -Path $GraphPath -Headers $Headers -ContentType 'application/json' -Filter $IdFilter         
+                    if ($Result -ne $null) {
+                        Write-Output $Result
+                    }                     
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphApplication] $GraphApiVersion $_" 
+                }               
+            }                
+        }
+        elseif ($PSCmdlet.ParameterSetName -eq 'displayName')
+        {
+            foreach ($Name in $DisplayName)
+            {
+                try
+                {
+                    $IdFilter="displayName eq '$Name'"
+                    $Result=GetAzureGraphODataResult -GraphApiRoot $GraphApiEndpoint -GraphApiVersion $GraphApiVersion `
+                        -Path $GraphPath -Headers $Headers -ContentType 'application/json' -Filter $IdFilter `
+                        -Top $Top -LimitResultPages $LimitResultPages     
+                    if ($Result -ne $null) {
+                        Write-Output $Result
+                    }                     
+                }
+                catch {
+                    Write-Warning "[Get-AzureADGraphApplication] $GraphApiVersion $_" 
+                }               
+            }                
+        }
+    }
+    END
+    {
+
+    }
+}
+
+<#
+    .SYNOPSIS
+        Removes an item from the directory
+    .PARAMETER Object
+        The azure active directory object
+    .PARAMETER ObjectId
+        The azure active directory object id
+    .PARAMETER AccessToken
+        The OAuth Bearer token
+    .PARAMETER GraphApiEndpoint
+        The Azure Graph API Uri
+    .PARAMETER GraphApiVersion
+        The Azure Graph API version
+    .PARAMETER TenantName
+        The directory tenant name
+#>
+Function Remove-AzureADGraphObject
+{
+    [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='object')]
+    param
+    (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='object')]
+        [Object[]]
+        $Object,
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id')]
+        [string[]]
+        $ObjectId,
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id')]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='object')]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='id')]
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='object')]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='id')]
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='object')]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='id')]
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='object')]
+        [String]
+        $TenantName='myOrganization'                        
+    )
+    BEGIN
+    {
+        $Headers=@{Authorization="Bearer $AccessToken";Accept='application/json'}
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($PSCmdlet.ParameterSetName -eq "object") {
+            $ObjectId=$Object|Select-Object -ExpandProperty 'objectId'
+        }
+        foreach ($Id in $ObjectId)
+        {
+            try {
+                $GraphUriBld.Path="$TenantName/directoryObjects/$Id"
+                $Result=Invoke-RestMethod -Uri $GraphUriBld.Uri -Method Delete -Headers $Headers
+            }
+            catch {
+                Write-Warning "[Remove-AzureADGraphObject] Error removing $Id $GraphApiVersion $_"
+            }
         }
     }
     END

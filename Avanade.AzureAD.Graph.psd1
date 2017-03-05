@@ -12,7 +12,7 @@
 RootModule = 'Module'
 
 # Version number of this module.
-ModuleVersion = '1.0.0'
+ModuleVersion = '1.0.1'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -72,15 +72,12 @@ RequiredAssemblies = 'System.Drawing', 'System.Windows.Forms'
 FunctionsToExport = @(
         "Get-AzureADGraphAuditEvent","Get-AzureADGraphDomain","Get-AzureADGraphGroup","Get-AzureADGraphOauthPermissionGrant",
         "Get-AzureADGraphPolicy","Get-AzureADGraphReport","Get-AzureADGraphReportMetadata","Get-AzureADGraphRole",
-        "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser"
+        "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser",
+        "Get-AzureADTenantDetails","Get-AzureADGraphApplication","Remove-AzureADGraphObject","Remove-AzureADGraphObject"
     )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
-CmdletsToExport = @(
-        "Get-AzureADGraphAuditEvent","Get-AzureADGraphDomain","Get-AzureADGraphGroup","Get-AzureADGraphOauthPermissionGrant",
-        "Get-AzureADGraphPolicy","Get-AzureADGraphReport","Get-AzureADGraphReportMetadata","Get-AzureADGraphRole",
-        "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser"
-    )
+# CmdletsToExport = @()
 
 # Variables to export from this module
 # VariablesToExport = @()
