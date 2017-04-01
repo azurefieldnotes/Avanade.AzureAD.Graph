@@ -3,6 +3,26 @@
     Simple REST Wrappers for the Azure AD Graph
 #>
 
+$AzureADWellKnownValues = [PSCustomObject]@{
+    Applications = [PSCustomObject]@{
+        LegacyPowerShell            = "0a7bdc5c-7b57-40be-9939-d4c5fc7cd417";
+        PowerShell                  = "1950a258-227b-4e31-a9cf-717495945fc2";
+        WindowsAzureActiveDirectory = "00000002-0000-0000-c000-000000000000";
+        VisualStudio                = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
+        AzureCLI                    = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
+    }
+    Permissions = [PSCustomObject]@{
+        AccessDirectoryAsSignedInUser   = "a42657d6-7f20-40e3-b6f0-cee03008a62a";
+        EnableSignOnAndReadUserProfiles = "311a71cc-e848-46a1-bdf8-97ff7156d8e6";
+        ReadAllGroups                   = "6234d376-f627-4f0f-90e0-dff25c5211a3";
+        ReadAllUsersBasicProfile        = "cba73afc-7f69-4d86-8450-4978e04ecd1a";
+        ReadAllUsersFullProfile         = "c582532d-9d9e-43bd-a97c-2667a28ce295";
+        ReadDirectoryData               = "5778995a-e1bf-45b8-affa-663a9f3f4d04";
+    }
+}
+Export-ModuleMember -Variable 'AzureADWellKnownValues'
+
+
 #region Helper Methods
 
 Function Invoke-AzureADGraphRequest
