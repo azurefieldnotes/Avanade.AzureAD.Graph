@@ -5,118 +5,6 @@
 
 #region Helper Methods
 
-<#
-    .SYNOPSIS
-        Wrapper method for paging OData REST calls
-#>
-Function GetAzureGraphODataResult
-{
-    [CmdletBinding(ConfirmImpact='None')]
-    param
-    (
-        [Parameter(Mandatory=$true)]
-        [System.Uri]
-        $GraphApiRoot,
-        [Parameter(Mandatory=$true)]
-        [System.String]
-        $Path,        
-        [Parameter(Mandatory=$false)]
-        [String]
-        $Filter,
-        [Parameter(Mandatory=$true)]
-        [String]
-        $GraphApiVersion,
-        [Parameter(Mandatory=$true)]
-        [hashtable]
-        $Headers,
-        [Parameter(Mandatory=$false)]
-        [System.String]
-        $ContentType='application/json',
-        [Parameter(Mandatory=$false)]
-        [System.Int32]
-        $Top,        
-        [Parameter(Mandatory=$false)]
-        [System.Int32]
-        $LimitResultPages,
-        [Parameter(Mandatory=$false)]
-        [System.String]
-        $ValueProperty='value',
-        [Parameter(Mandatory=$false)]
-        [System.String]
-        $NextLinkProperty='odata.nextLink',
-        [Parameter(Mandatory=$false)]
-        [System.String]
-        $ErrorProperty='error'
-    )
-
-    $ResultPages=0
-    $TotalItems=0
-    $UriBld=New-Object System.UriBuilder($GraphApiRoot)
-    $UriQuery="api-version=$GraphApiVersion"
-    if ([String]::IsNullOrEmpty($Filter) -eq $false) {
-        $UriQuery+="&`$filter=$Filter"
-        if ($Filter -like '$top=') {
-            $Top=0
-        }
-    }
-    if ($Top -gt 0) {
-        $UriQuery+="&`$top=$Top"
-    }
-    $UriBld.Path=$Path
-    $UriBld.Query=$UriQuery
-    do
-    {
-        $ResultPages++
-        try
-        {
-            $GraphResult=Invoke-RestMethod -Uri $UriBld.Uri -Headers $Headers -ContentType $ContentType  -ErrorAction Stop
-            if($GraphResult.PSobject.Properties.name -match $ValueProperty)
-            {
-                $RequestValue=@($GraphResult|Select-Object -ExpandProperty $ValueProperty)
-                $TotalItems+=$RequestValue.Count
-                if($GraphResult.PSobject.Properties.name -match $NextLinkProperty)
-                {
-                    if ($Top -gt 0 -or $LimitResultPages -gt 0) {
-                        if ($TotalItems -ge $Top -or $ResultPages -ge $LimitResultPages) {
-                            Write-Verbose "[GetAzureGraphODataResult] Stopped Iterating Page:$ResultPages Total Items:$TotalItems"
-                            $UriBld=$null
-                        }
-                    }
-                    else
-                    {
-                        $NextLinkValue=$GraphResult|Select-Object -ExpandProperty $NextLinkProperty
-                        #HACK: Inconsistent nextLink behavior on Graph
-                        if ($NextLinkValue -like 'http*') {
-                            $UriBld=New-Object System.UriBuilder([Uri]::UnescapeDataString($NextLinkValue))
-                        }
-                        else {
-                            $UpdatedQuery=[Uri]::UnescapeDataString((($NextLinkValue.Split('?')|Select-Object -Last 1).Split('&')|Select-Object -Last 1))
-                            $UriBld.Query="$UriQuery&$UpdatedQuery"
-                        }
-                        Write-Verbose "[GetAzureGraphODataResult] Page:$ResultPages Page Size:$($RequestValue.Count) More Results Available @ $($UriBld.Uri)"                     
-                    }
-                }
-                else {
-                    $UriBld=$null
-                }
-                Write-Verbose "[GetAzureGraphODataResult] Page:$ResultPages Total Items:$TotalItems"
-                Write-Output $RequestValue
-            }
-            else
-            {
-                $UriBld=$null
-            }
-        }
-        catch
-        {
-            Write-Warning "[GetAzureGraphODataResult] $($UriBld.Uri) $_"
-            $UriBld=$null
-        }
-    } until ($UriBld -eq $null)
-}
-
-#endregion
-
 Function Invoke-AzureADGraphRequest
 {
     [CmdletBinding(ConfirmImpact='None')]
@@ -152,7 +40,10 @@ Function Invoke-AzureADGraphRequest
         $ErrorProperty='error',
         [Parameter(Mandatory=$false)]
         [Int32]
-        $LimitResultPages
+        $LimitResultPages,
+        [Parameter(Mandatory=$false)]
+        [Int32]
+        $RequestDelayMilliseconds=100
     )
     $ResultPages=0
     $TotalItems=0
@@ -176,7 +67,7 @@ Function Invoke-AzureADGraphRequest
     {
         $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
         Write-Verbose "[Invoke-ArmRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
-        $RequestResult=Invoke-Command -ScriptBlock $ContentAction -ArgumentList $Response.Content|ConvertFrom-Json
+        $RequestResult=$Response.Content|ConvertFrom-Json
     }
     catch
     {
@@ -259,7 +150,7 @@ Function Invoke-AzureADGraphRequest
                 $RequestParams['Uri']=$UriBld.Uri
                 $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
                 Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
-                $RequestResult=Invoke-Command -ScriptBlock $ContentAction -ArgumentList $Response.Content|ConvertFrom-Json
+                $RequestResult=$Response.Content|ConvertFrom-Json
                 if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
                 {
                     $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
@@ -313,6 +204,8 @@ Function Invoke-AzureADGraphRequest
         }        
     }
 }
+
+#endregion
 
 #region Graph Functions
 
@@ -443,7 +336,7 @@ Function Get-AzureADGraphAuditEvent
                 $GraphUriBld.Query=$GraphQuery
                 $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                     -ContentType 'application/json' `
-                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                     -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                 Write-Output $Result
             }
@@ -524,7 +417,7 @@ Function Get-AzureADGraphSigninEvent
                 $GraphUriBld.Query=$GraphQuery
                 $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                     -ContentType 'application/json' `
-                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                     -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                 Write-Output $Result               
             }
@@ -627,7 +520,7 @@ Function Get-AzureADGraphReport
                     $GraphUriBld.Query=$GraphQuery
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
@@ -701,7 +594,7 @@ Function Get-AzureADGraphOauthPermissionGrant
     #odata call
     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
         -ContentType 'application/json' `
-        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
     if ($Result -ne $null) {
         Write-Output $Result
@@ -759,7 +652,7 @@ Function Get-AzureADGraphDomain
                     $GraphUriBld.Path="myOrganization/domains('$Domain')"
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
@@ -774,7 +667,7 @@ Function Get-AzureADGraphDomain
         {
             $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                 -ContentType 'application/json' `
-                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                 -LimitResultPages $LimitResultPages -AccessToken $AccessToken
             if ($Result -ne $null) {
                 Write-Output $Result
@@ -842,7 +735,7 @@ Function Get-AzureADGraphPolicy
                     $GraphUriBld.Path="$TenantName/policies/$Policy"
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
@@ -858,7 +751,7 @@ Function Get-AzureADGraphPolicy
         {
             $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                 -ContentType 'application/json' `
-                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                 -LimitResultPages $LimitResultPages -AccessToken $AccessToken
             if ($Result -ne $null) {
                 Write-Output $Result
@@ -916,12 +809,12 @@ Function Get-AzureADGraphRole
                 $GraphQuery+="&`$top=$Top"
             }
         }
+        $GraphUriBld.Query=$GraphQuery
     }
     PROCESS
     {
         if ($PSCmdlet.ParameterSetName -eq 'noquery' -and $RoleId -ne $null) 
         {
-            $GraphUriBld.Query=$GraphQuery
             foreach ($Role in $RoleId)
             {
                 try
@@ -929,7 +822,7 @@ Function Get-AzureADGraphRole
                     $GraphUriBld.Path="$TenantName/directoryRoles/$Role"
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
@@ -944,16 +837,12 @@ Function Get-AzureADGraphRole
         {
             $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                 -ContentType 'application/json' `
-                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                 -LimitResultPages $LimitResultPages -AccessToken $AccessToken
             if ($Result -ne $null) {
                 Write-Output $Result
             }
         }
-    }
-    END
-    {
-
     }
 }
 
@@ -1013,22 +902,26 @@ Function Get-AzureADGraphRoleTemplate
         $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
         $GraphUriBld.Path="$TenantName/directoryRoleTemplates"
         $GraphQuery="api-version=$GraphApiVersion"
-        if ($PSCmdlet.ParameterSetName -eq 'query') {
-            if ($Filter.Contains('top=') -eq $false -and $Top -gt 0) {
+        if ($PSCmdlet.ParameterSetName -eq 'query')
+        {
+            if ($Filter.Contains('top=') -eq $false -and $Top -gt 0)
+            {
                 $GraphQuery+="&`$top=$Top"
             }
         }
-        else {
-            if ($Top -gt 0) {
+        else
+        {
+            if ($Top -gt 0)
+            {
                 $GraphQuery+="&`$top=$Top"
             }
         }
+        $GraphUriBld.Query=$GraphQuery
     }
     PROCESS
     {
         if ($PSCmdlet.ParameterSetName -eq 'noquery' -and $TemplateId -ne $null) 
         {
-            $GraphUriBld.Query=$GraphQuery
             foreach ($Template in $TemplateId)
             {
                 try
@@ -1036,7 +929,7 @@ Function Get-AzureADGraphRoleTemplate
                     $GraphUriBld.Path="$TenantName/directoryRoleTemplates/$Template"
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
@@ -1051,7 +944,7 @@ Function Get-AzureADGraphRoleTemplate
         {
             $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                 -ContentType 'application/json' `
-                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink'  -ErrorProperty 'odata.error' `
                 -LimitResultPages $LimitResultPages -AccessToken $AccessToken
             if ($Result -ne $null) {
                 Write-Output $Result
@@ -1116,22 +1009,26 @@ Function Get-AzureADGraphUser
         $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
         $GraphUriBld.Path="$TenantName/users"
         $GraphQuery="api-version=$GraphApiVersion"
-        if ($PSCmdlet.ParameterSetName -eq 'query') {
-            if ($Filter.Contains('top=') -eq $false -and $Top -gt 0) {
+        if ($PSCmdlet.ParameterSetName -eq 'query')
+        {
+            if ($Filter.Contains('top=') -eq $false -and $Top -gt 0)
+            {
                 $GraphQuery+="&`$top=$Top"
             }
         }
-        else {
-            if ($Top -gt 0) {
+        else
+        {
+            if ($Top -gt 0)
+            {
                 $GraphQuery+="&`$top=$Top"
             }
         }
+        $GraphUriBld.Query=$GraphQuery
     }
     PROCESS
     {
         if ($PSCmdlet.ParameterSetName -eq 'noquery' -and $UserId -ne $null)
         {
-            $GraphUriBld.Query=$GraphQuery
             foreach ($User in $UserId)
             {
                 try
@@ -1139,7 +1036,7 @@ Function Get-AzureADGraphUser
                     $GraphUriBld.Path="$TenantName/users/$User"
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
@@ -1154,7 +1051,7 @@ Function Get-AzureADGraphUser
         {
             $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                 -ContentType 'application/json' `
-                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                 -LimitResultPages $LimitResultPages -AccessToken $AccessToken
             if ($Result -ne $null) {
                 Write-Output $Result
@@ -1219,22 +1116,26 @@ Function Get-AzureADGraphGroup
         $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
         $GraphUriBld.Path="$TenantName/groups"
         $GraphQuery="api-version=$GraphApiVersion"
-        if ($PSCmdlet.ParameterSetName -eq 'query') {
-            if ($Filter.Contains('top=') -eq $false -and $Top -gt 0) {
+        if ($PSCmdlet.ParameterSetName -eq 'query')
+        {
+            if ($Filter.Contains('top=') -eq $false -and $Top -gt 0)
+            {
                 $GraphQuery+="&`$top=$Top"
             }
         }
-        else {
-            if ($Top -gt 0) {
+        else
+        {
+            if ($Top -gt 0)
+            {
                 $GraphQuery+="&`$top=$Top"
             }
         }
+        $GraphUriBld.Query=$GraphQuery
     }
     PROCESS
     {
         if ($PSCmdlet.ParameterSetName -eq 'noquery' -and $GroupId -ne $null)
         {
-            $GraphUriBld.Query=$GraphQuery
             foreach ($Group in $GroupId)
             {
                 try
@@ -1242,13 +1143,14 @@ Function Get-AzureADGraphGroup
                     $GraphUriBld.Path="$TenantName/groups/$Group"
                     $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                         -ContentType 'application/json' `
-                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                        -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                         -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                     if ($Result -ne $null) {
                         Write-Output $Result
                     }
                 }
-                catch {
+                catch
+                {
                     Write-Warning "[Get-AzureADGraphGroup] $User api-version=$GraphApiVersion $_"
                 }
             }            
@@ -1528,20 +1430,20 @@ Function Remove-AzureADGraphObject
         [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id')]
         [string[]]
         $ObjectId,
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id')]
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='object')]
+        [Parameter(Mandatory=$true,ParameterSetName='id')]
+        [Parameter(Mandatory=$true,ParameterSetName='object')]
         [string]
         $AccessToken,
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='id')]
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='object')]
+        [Parameter(Mandatory=$false,ParameterSetName='id')]
+        [Parameter(Mandatory=$false,ParameterSetName='object')]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='id')]
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='object')]
+        [Parameter(Mandatory=$false,ParameterSetName='id')]
+        [Parameter(Mandatory=$false,ParameterSetName='object')]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='id')]
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ParameterSetName='object')]
+        [Parameter(Mandatory=$false,ParameterSetName='id')]
+        [Parameter(Mandatory=$false,ParameterSetName='object')]
         [String]
         $TenantName='myOrganization'                        
     )
