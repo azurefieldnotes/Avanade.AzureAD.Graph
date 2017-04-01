@@ -117,6 +117,200 @@ Function GetAzureGraphODataResult
 
 #endregion
 
+Function Invoke-AzureADGraphRequest
+{
+    [CmdletBinding(ConfirmImpact='None')]
+    param
+    (
+        [Parameter(Mandatory=$true)]
+        [uri]
+        $Uri,
+        [Parameter(Mandatory=$false)]
+        [string]
+        $ContentType='application/json',
+        [Parameter(Mandatory=$false)]
+        [System.Object]
+        $Body,
+        [Parameter(Mandatory=$false)]
+        [Microsoft.PowerShell.Commands.WebRequestMethod]
+        $Method="GET",
+        [Parameter(Mandatory=$true)]
+        [string]
+        $AccessToken,
+        [ValidateNotNull()]
+        [Parameter(Mandatory=$false)]
+        [System.Collections.IDictionary]
+        $AdditionalHeaders=@{Accept='application/json'},
+        [Parameter(Mandatory=$false)]
+        [string]
+        $ValueProperty='value',
+        [Parameter(Mandatory=$false)]
+        [System.String]
+        $NextLinkProperty='odata.nextLink',
+        [Parameter(Mandatory=$false)]
+        [System.String]
+        $ErrorProperty='error'
+    )
+    $ResultPages=0
+    $TotalItems=0
+    $RequestHeaders=$AdditionalHeaders
+    $RequestHeaders['client-request-id']=[Guid]::NewGuid().ToString()
+    $RequestHeaders['User-Agent']="PowerShell $($PSVersionTable.PSVersion.ToString())"
+    $RequestHeaders['Authorization']="Bearer $AccessToken"
+    $BaseUri="$($Uri.Scheme)://$($Uri.Host)"
+    $RequestParams=@{
+        Headers=$RequestHeaders;
+        Uri=$Uri;
+        ContentType=$ContentType;
+        Method=$Method;
+    }
+    if ($Body -ne $null)
+    {
+        $RequestParams['Body']=$Body
+    }
+    $RequestResult=$null
+    try
+    {
+        $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
+        Write-Verbose "[Invoke-ArmRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
+        $RequestResult=Invoke-Command -ScriptBlock $ContentAction -ArgumentList $Response.Content|ConvertFrom-Json
+    }
+    catch
+    {
+        #See if we can unwind an exception from a response
+        if($_.Exception.Response -ne $null)
+        {
+            $ExceptionResponse=$_.Exception.Response
+            $ErrorStream=$ExceptionResponse.GetResponseStream()
+            $ErrorStream.Position=0
+            $StreamReader=New-Object System.IO.StreamReader($ErrorStream)
+            try
+            {
+                $ErrorContent=$StreamReader.ReadToEnd()
+                $StreamReader.Close()
+                if(-not [String]::IsNullOrEmpty($ErrorContent))
+                {
+                    $ErrorObject=$ErrorContent|ConvertFrom-Json
+                    if (-not [String]::IsNullOrEmpty($ErrorProperty) -and  $ErrorObject.PSobject.Properties.name -match $ErrorProperty)
+                    {
+                        $ErrorContent=($ErrorObject|Select-Object -ExpandProperty $ErrorProperty)|ConvertTo-Json
+                    }
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                $StreamReader.Close()
+            }
+            $ErrorMessage="Error: $($ExceptionResponse.Method) $($ExceptionResponse.ResponseUri) Returned $($ExceptionResponse.StatusCode) $ErrorContent"
+        }
+        else
+        {
+            $ErrorMessage="An error occurred $_"
+        }
+        Write-Verbose "[Invoke-AzureADGraphRequest] $ErrorMessage"
+        throw $ErrorMessage        
+    }
+    if ($RequestResult -ne $null)
+    {
+        if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
+        {
+            $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
+            $TotalItems+=$Result.Count
+            Write-Output $Result
+        }
+        else
+        {
+            Write-Output $RequestResult
+            $TotalItems++ #not sure why I am incrementing..
+        }
+        #Loop to aggregate OData continutation tokens
+        while ($RequestResult.PSobject.Properties.name -match $NextLinkProperty)
+        {
+            #Throttle the requests a bit..
+            Start-Sleep -Milliseconds $RequestDelayMilliseconds
+            $ResultPages++
+            $UriBld=New-Object System.UriBuilder($BaseUri)
+            $NextUri=$RequestResult|Select-Object -ExpandProperty $NextLinkProperty
+            if($LimitResultPages -gt 0 -and $ResultPages -eq $LimitResultPages -or [String]::IsNullOrEmpty($NextUri))
+            {
+                break
+            }
+            Write-Verbose "[Invoke-AzureADGraphRequest] Item Count:$TotalItems Page:$ResultPages More Items available @ $NextUri"
+            #Is this an absolute or relative uri?
+            if($NextUri -match "$BaseUri*")
+            {
+                $UriBld=New-Object System.UriBuilder($NextUri)
+            }
+            else
+            {
+                $Path=$NextUri.Split('?')|Select-Object -First 1
+                $NextQuery=[Uri]::UnescapeDataString(($NextUri.Split('?')|Select-Object -Last 1))
+                $UriBld.Path=$Path
+                $UriBld.Query=$NextQuery
+            }
+            try
+            {
+                $RequestParams['Uri']=$UriBld.Uri
+                $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
+                Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
+                $RequestResult=Invoke-Command -ScriptBlock $ContentAction -ArgumentList $Response.Content|ConvertFrom-Json
+                if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
+                {
+                    $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
+                    $TotalItems+=$Result.Count
+                    Write-Output $Result
+                }
+                else
+                {
+                    Write-Output $RequestResult
+                    $TotalItems++ #not sure why I am incrementing..
+                }
+            }
+            catch
+            {
+                #See if we can unwind an exception from a response
+                if($_.Exception.Response -ne $null)
+                {
+                    $ExceptionResponse=$_.Exception.Response
+                    $ErrorStream=$ExceptionResponse.GetResponseStream()
+                    $ErrorStream.Position=0
+                    $StreamReader = New-Object System.IO.StreamReader($ErrorStream)
+                    try
+                    {
+                        $ErrorContent=$StreamReader.ReadToEnd()
+                        $StreamReader.Close()
+                        if(-not [String]::IsNullOrEmpty($ErrorContent))
+                        {
+                            $ErrorObject=$ErrorContent|ConvertFrom-Json
+                            if (-not [String]::IsNullOrEmpty($ErrorProperty) -and  $ErrorObject.PSobject.Properties.name -match $ErrorProperty)
+                            {
+                                $ErrorContent=($ErrorObject|Select-Object -ExpandProperty $ErrorProperty)|ConvertTo-Json
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        $StreamReader.Close()
+                    }
+                    $ErrorMessage="Error: $($ExceptionResponse.Method) $($ExceptionResponse.ResponseUri) Returned $($ExceptionResponse.StatusCode) $ErrorContent"
+                }
+                else
+                {
+                    $ErrorMessage="An error occurred $_"
+                }
+                Write-Verbose "[Invoke-AzureADGraphRequest] $ErrorMessage"
+                throw $ErrorMessage
+            }
+        }        
+    }
+}
+
 #region Graph Functions
 
 <#
