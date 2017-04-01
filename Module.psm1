@@ -66,7 +66,7 @@ Function Invoke-AzureADGraphRequest
     try
     {
         $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
-        Write-Verbose "[Invoke-ArmRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
+        Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
         $RequestResult=$Response.Content|ConvertFrom-Json
     }
     catch
