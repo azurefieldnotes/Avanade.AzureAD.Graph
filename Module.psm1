@@ -1208,7 +1208,9 @@ Function Get-AzureADTenantDetails
     )
     BEGIN
     {
-
+        $Headers=@{Accept="application/json"}
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
     }
     PROCESS
     {
@@ -1216,10 +1218,10 @@ Function Get-AzureADTenantDetails
         {
             try
             {
-                $Headers=@{Authorization="Bearer $AccessToken";Accept="application/json"}
+                $GraphUriBld.Path="$item/tenantDetails"
                 $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -AdditionalHeaders $Headers `
                     -ContentType 'application/json' `
-                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' `
+                    -ValueProperty 'value' -NextLinkProperty '@odata.nextLink' -ErrorProperty 'odata.error' `
                     -LimitResultPages $LimitResultPages -AccessToken $AccessToken
                 if ($Result -ne $null) {
                     Write-Output $Result
