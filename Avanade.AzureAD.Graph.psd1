@@ -73,14 +73,15 @@ FunctionsToExport = @(
         "Get-AzureADGraphAuditEvent","Get-AzureADGraphDomain","Get-AzureADGraphGroup","Get-AzureADGraphOauthPermissionGrant",
         "Get-AzureADGraphPolicy","Get-AzureADGraphReport","Get-AzureADGraphReportMetadata","Get-AzureADGraphRole",
         "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser",
-        "Get-AzureADTenantDetails","Get-AzureADGraphApplication","Remove-AzureADGraphObject","Remove-AzureADGraphObject",'Invoke-AzureADGraphRequest'
+        "Get-AzureADTenantDetails","Get-AzureADGraphApplication","Remove-AzureADGraphObject","Remove-AzureADGraphObject",
+        'Get-AzureADGraphServicePrincipal','Invoke-AzureADGraphRequest'
     )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 # CmdletsToExport = @()
 
 # Variables to export from this module
-VariablesToExport = @('AzureADWellKnownValues')
+VariablesToExport = @()
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
 AliasesToExport = @()
