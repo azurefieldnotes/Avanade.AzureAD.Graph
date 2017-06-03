@@ -10,197 +10,200 @@ Function Invoke-AzureADGraphRequest
     [CmdletBinding(ConfirmImpact='None')]
     param
     (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [uri]
         $Uri,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [string]
         $ContentType='application/json',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Object]
         $Body,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [Microsoft.PowerShell.Commands.WebRequestMethod]
         $Method="GET",
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [string]
         $AccessToken,
         [ValidateNotNull()]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Collections.IDictionary]
         $AdditionalHeaders=@{Accept='application/json'},
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [string]
         $ValueProperty='value',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.String]
         $NextLinkProperty='$odata.nextLink',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.String]
         $ErrorProperty='odata.error',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [Int32]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [Int32]
         $RequestDelayMilliseconds=100
     )
-    $ResultPages=0
-    $TotalItems=0
-    $RequestHeaders=$AdditionalHeaders
-    $RequestHeaders['client-request-id']=[Guid]::NewGuid().ToString()
-    $RequestHeaders['User-Agent']="PowerShell $($PSVersionTable.PSVersion.ToString())"
-    $RequestHeaders['Authorization']="Bearer $AccessToken"
-    $BaseUri="$($Uri.Scheme)://$($Uri.Host)"
-    $RequestParams=@{
-        Headers=$RequestHeaders;
-        Uri=$Uri;
-        ContentType=$ContentType;
-        Method=$Method;
-    }
-    if ($Body -ne $null)
+    PROCESS
     {
-        $RequestParams['Body']=$Body
-    }
-    $RequestResult=$null
-    try
-    {
-        $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
-        Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
-        $RequestResult=$Response.Content|ConvertFrom-Json
-    }
-    catch
-    {
-        #See if we can unwind an exception from a response
-        if($_.Exception.Response -ne $null)
+        $ResultPages=0
+        $TotalItems=0
+        $RequestHeaders=$AdditionalHeaders
+        $RequestHeaders['client-request-id']=[Guid]::NewGuid().ToString()
+        $RequestHeaders['User-Agent']="PowerShell $($PSVersionTable.PSVersion.ToString())"
+        $RequestHeaders['Authorization']="Bearer $AccessToken"
+        $BaseUri="$($Uri.Scheme)://$($Uri.Host)"
+        $RequestParams=@{
+            Headers=$RequestHeaders;
+            Uri=$Uri;
+            ContentType=$ContentType;
+            Method=$Method;
+        }
+        if ($Body -ne $null)
         {
-            $ExceptionResponse=$_.Exception.Response
-            $ErrorStream=$ExceptionResponse.GetResponseStream()
-            $ErrorStream.Position=0
-            $StreamReader=New-Object System.IO.StreamReader($ErrorStream)
-            try
+            $RequestParams['Body']=$Body
+        }
+        $RequestResult=$null
+        try
+        {
+            $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
+            Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
+            $RequestResult=$Response.Content|ConvertFrom-Json
+        }
+        catch
+        {
+            #See if we can unwind an exception from a response
+            if($_.Exception.Response -ne $null)
             {
-                $ErrorContent=$StreamReader.ReadToEnd()
-                $StreamReader.Close()
-                if(-not [String]::IsNullOrEmpty($ErrorContent))
+                $ExceptionResponse=$_.Exception.Response
+                $ErrorStream=$ExceptionResponse.GetResponseStream()
+                $ErrorStream.Position=0
+                $StreamReader=New-Object System.IO.StreamReader($ErrorStream)
+                try
                 {
-                    $ErrorObject=$ErrorContent|ConvertFrom-Json
-                    if (-not [String]::IsNullOrEmpty($ErrorProperty) -and  $ErrorObject.PSobject.Properties.name -match $ErrorProperty)
+                    $ErrorContent=$StreamReader.ReadToEnd()
+                    $StreamReader.Close()
+                    if(-not [String]::IsNullOrEmpty($ErrorContent))
                     {
-                        $ErrorContent=($ErrorObject|Select-Object -ExpandProperty $ErrorProperty)|ConvertTo-Json
+                        $ErrorObject=$ErrorContent|ConvertFrom-Json
+                        if (-not [String]::IsNullOrEmpty($ErrorProperty) -and  $ErrorObject.PSobject.Properties.name -match $ErrorProperty)
+                        {
+                            $ErrorContent=($ErrorObject|Select-Object -ExpandProperty $ErrorProperty)|ConvertTo-Json
+                        }
                     }
                 }
-            }
-            catch
-            {
-            }
-            finally
-            {
-                $StreamReader.Close()
-            }
-            $ErrorMessage="Error: $($ExceptionResponse.Method) $($ExceptionResponse.ResponseUri) Returned $($ExceptionResponse.StatusCode) $ErrorContent"
-        }
-        else
-        {
-            $ErrorMessage="An error occurred $_"
-        }
-        Write-Verbose "[Invoke-AzureADGraphRequest] $ErrorMessage"
-        throw $ErrorMessage        
-    }
-    if ($RequestResult -ne $null)
-    {
-        if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
-        {
-            $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
-            $TotalItems+=$Result.Count
-            Write-Output $Result
-        }
-        else
-        {
-            Write-Output $RequestResult
-            $TotalItems++ #not sure why I am incrementing..
-        }
-        #Loop to aggregate OData continutation tokens
-        while ($RequestResult.PSobject.Properties.name -match $NextLinkProperty)
-        {
-            #Throttle the requests a bit..
-            Start-Sleep -Milliseconds $RequestDelayMilliseconds
-            $ResultPages++
-            $UriBld=New-Object System.UriBuilder($BaseUri)
-            $NextUri=$RequestResult|Select-Object -ExpandProperty $NextLinkProperty
-            if($LimitResultPages -gt 0 -and $ResultPages -eq $LimitResultPages -or [String]::IsNullOrEmpty($NextUri))
-            {
-                break
-            }
-            Write-Verbose "[Invoke-AzureADGraphRequest] Item Count:$TotalItems Page:$ResultPages More Items available @ $NextUri"
-            #Is this an absolute or relative uri?
-            if($NextUri -match "$BaseUri*")
-            {
-                $UriBld=New-Object System.UriBuilder($NextUri)
+                catch
+                {
+                }
+                finally
+                {
+                    $StreamReader.Close()
+                }
+                $ErrorMessage="Error: $($ExceptionResponse.Method) $($ExceptionResponse.ResponseUri) Returned $($ExceptionResponse.StatusCode) $ErrorContent"
             }
             else
             {
-                $Path=$NextUri.Split('?')|Select-Object -First 1
-                $NextQuery=[Uri]::UnescapeDataString(($NextUri.Split('?')|Select-Object -Last 1))
-                $UriBld.Path=$Path
-                $UriBld.Query=$NextQuery
+                $ErrorMessage="An error occurred $_"
             }
-            try
+            Write-Verbose "[Invoke-AzureADGraphRequest] $ErrorMessage"
+            throw $ErrorMessage        
+        }
+        if ($RequestResult -ne $null)
+        {
+            if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
             {
-                $RequestParams['Uri']=$UriBld.Uri
-                $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
-                Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
-                $RequestResult=$Response.Content|ConvertFrom-Json
-                if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
+                $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
+                $TotalItems+=$Result.Count
+                Write-Output $Result
+            }
+            else
+            {
+                Write-Output $RequestResult
+                $TotalItems++ #not sure why I am incrementing..
+            }
+            #Loop to aggregate OData continutation tokens
+            while ($RequestResult.PSobject.Properties.name -match $NextLinkProperty)
+            {
+                #Throttle the requests a bit..
+                Start-Sleep -Milliseconds $RequestDelayMilliseconds
+                $ResultPages++
+                $UriBld=New-Object System.UriBuilder($BaseUri)
+                $NextUri=$RequestResult|Select-Object -ExpandProperty $NextLinkProperty
+                if($LimitResultPages -gt 0 -and $ResultPages -eq $LimitResultPages -or [String]::IsNullOrEmpty($NextUri))
                 {
-                    $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
-                    $TotalItems+=$Result.Count
-                    Write-Output $Result
+                    break
+                }
+                Write-Verbose "[Invoke-AzureADGraphRequest] Item Count:$TotalItems Page:$ResultPages More Items available @ $NextUri"
+                #Is this an absolute or relative uri?
+                if($NextUri -match "$BaseUri*")
+                {
+                    $UriBld=New-Object System.UriBuilder($NextUri)
                 }
                 else
                 {
-                    Write-Output $RequestResult
-                    $TotalItems++ #not sure why I am incrementing..
+                    $Path=$NextUri.Split('?')|Select-Object -First 1
+                    $NextQuery=[Uri]::UnescapeDataString(($NextUri.Split('?')|Select-Object -Last 1))
+                    $UriBld.Path=$Path
+                    $UriBld.Query=$NextQuery
                 }
-            }
-            catch
-            {
-                #See if we can unwind an exception from a response
-                if($_.Exception.Response -ne $null)
+                try
                 {
-                    $ExceptionResponse=$_.Exception.Response
-                    $ErrorStream=$ExceptionResponse.GetResponseStream()
-                    $ErrorStream.Position=0
-                    $StreamReader = New-Object System.IO.StreamReader($ErrorStream)
-                    try
+                    $RequestParams['Uri']=$UriBld.Uri
+                    $Response=Invoke-WebRequest @RequestParams -UseBasicParsing -ErrorAction Stop
+                    Write-Verbose "[Invoke-AzureADGraphRequest]$Method $Uri Response:$($Response.StatusCode)-$($Response.StatusDescription) Content-Length:$($Response.RawContentLength)"
+                    $RequestResult=$Response.Content|ConvertFrom-Json
+                    if ($RequestResult.PSobject.Properties.name -match $ValueProperty)
                     {
-                        $ErrorContent=$StreamReader.ReadToEnd()
-                        $StreamReader.Close()
-                        if(-not [String]::IsNullOrEmpty($ErrorContent))
+                        $Result=$RequestResult|Select-Object -ExpandProperty $ValueProperty
+                        $TotalItems+=$Result.Count
+                        Write-Output $Result
+                    }
+                    else
+                    {
+                        Write-Output $RequestResult
+                        $TotalItems++ #not sure why I am incrementing..
+                    }
+                }
+                catch
+                {
+                    #See if we can unwind an exception from a response
+                    if($_.Exception.Response -ne $null)
+                    {
+                        $ExceptionResponse=$_.Exception.Response
+                        $ErrorStream=$ExceptionResponse.GetResponseStream()
+                        $ErrorStream.Position=0
+                        $StreamReader = New-Object System.IO.StreamReader($ErrorStream)
+                        try
                         {
-                            $ErrorObject=$ErrorContent|ConvertFrom-Json
-                            if (-not [String]::IsNullOrEmpty($ErrorProperty) -and  $ErrorObject.PSobject.Properties.name -match $ErrorProperty)
+                            $ErrorContent=$StreamReader.ReadToEnd()
+                            $StreamReader.Close()
+                            if(-not [String]::IsNullOrEmpty($ErrorContent))
                             {
-                                $ErrorContent=($ErrorObject|Select-Object -ExpandProperty $ErrorProperty)|ConvertTo-Json
+                                $ErrorObject=$ErrorContent|ConvertFrom-Json
+                                if (-not [String]::IsNullOrEmpty($ErrorProperty) -and  $ErrorObject.PSobject.Properties.name -match $ErrorProperty)
+                                {
+                                    $ErrorContent=($ErrorObject|Select-Object -ExpandProperty $ErrorProperty)|ConvertTo-Json
+                                }
                             }
                         }
+                        catch
+                        {
+                        }
+                        finally
+                        {
+                            $StreamReader.Close()
+                        }
+                        $ErrorMessage="Error: $($ExceptionResponse.Method) $($ExceptionResponse.ResponseUri) Returned $($ExceptionResponse.StatusCode) $ErrorContent"
                     }
-                    catch
+                    else
                     {
+                        $ErrorMessage="An error occurred $_"
                     }
-                    finally
-                    {
-                        $StreamReader.Close()
-                    }
-                    $ErrorMessage="Error: $($ExceptionResponse.Method) $($ExceptionResponse.ResponseUri) Returned $($ExceptionResponse.StatusCode) $ErrorContent"
+                    Write-Verbose "[Invoke-AzureADGraphRequest] $ErrorMessage"
+                    throw $ErrorMessage
                 }
-                else
-                {
-                    $ErrorMessage="An error occurred $_"
-                }
-                Write-Verbose "[Invoke-AzureADGraphRequest] $ErrorMessage"
-                throw $ErrorMessage
-            }
+            }        
         }        
     }
 }
@@ -226,16 +229,16 @@ Function Get-AzureADGraphReportMetadata
     [CmdletBinding()]
     param
     (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $TenantName, 
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta'             
     )
@@ -290,27 +293,27 @@ Function Get-AzureADGraphAuditEvent
     [CmdletBinding()]
     param
     (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top,        
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $TenantName,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter        
     )
@@ -371,27 +374,27 @@ Function Get-AzureADGraphSigninEvent
     [CmdletBinding()]
     param
     (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $TenantName,        
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter        
     )
@@ -454,7 +457,7 @@ Function Get-AzureADGraphReport
     [CmdletBinding()]
     param
     (
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateSet(
             'b2cAuthenticationCountSummary','b2cMfaRequestCount','b2cMfaRequestEvent',
             'b2cAuthenticationEvent','b2cAuthenticationCount','b2cMfaRequestCountSummary',
@@ -472,27 +475,27 @@ Function Get-AzureADGraphReport
         )]
         [String[]]
         $Element='auditEvents',
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top,        
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $TenantName,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter 
     )
@@ -557,26 +560,26 @@ Function Get-AzureADGraphOauthPermissionGrant
     [CmdletBinding(ConfirmImpact='None')]
     param
     (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $Top,       
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter,        
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='1.6',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization' 
     )
@@ -618,19 +621,19 @@ Function Get-AzureADGraphDomain
     [CmdletBinding(ConfirmImpact='None')]
     param
     (
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $DomainName,
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,      
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='1.6',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization'
     )
@@ -693,26 +696,26 @@ Function Get-AzureADGraphPolicy
     [CmdletBinding(ConfirmImpact='None')]
     param
     (
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $PolicyId,
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,      
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='1.6',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top        
@@ -777,19 +780,19 @@ Function Get-AzureADGraphRole
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
     param
     (
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $RoleId,
-        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization'
     )
@@ -863,35 +866,35 @@ Function Get-AzureADGraphRoleTemplate
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
     param
     (
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $TemplateId,
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter,
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
-        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='1.6',
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top
@@ -973,32 +976,32 @@ Function Get-AzureADGraphUser
         [Parameter(Mandatory=$false,ParameterSetName='noquery')]
         [String[]]
         $UserId,
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter,
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
-        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top
@@ -1077,35 +1080,35 @@ Function Get-AzureADGraphGroup
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
     param
     (
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $GroupId,
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter,
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
-        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top
@@ -1185,23 +1188,23 @@ Function Get-AzureADTenantDetails
     [CmdletBinding(ConfirmImpact='None')]
     param
     (
-        [Parameter(Mandatory=$false,ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [String[]]
         $TenantName='myOrganization',        
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top
@@ -1259,55 +1262,55 @@ Function Get-AzureADGraphApplication
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
     param
     (
-        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [Guid[]]
         $ApplicationId,
-        [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [System.Uri[]]
         $ApplicationUri,
-        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [System.String[]]
         $DisplayName,           
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter,
-        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
-        [Parameter(Mandatory=$true,ParameterSetName='byAppUri')]
-        [Parameter(Mandatory=$true,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$true,ParameterSetName='displayName')]
+        [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppUri')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppUri')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppUri')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top
@@ -1428,57 +1431,57 @@ Function Get-AzureADGraphServicePrincipal
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
     param
     (
-        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [Guid[]]
         $ApplicationId,
-        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [System.String[]]
         $DisplayName,
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipeline=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [System.String[]]
         $AppDisplayName,                
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]
         $Filter,
-        [Parameter(Mandatory=$true,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$true,ParameterSetName='query')]
-        [Parameter(Mandatory=$true,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$true,ParameterSetName='displayName')]
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName')]
+        [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipelineByPropertyName=$true)]
         [String]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='1.6',
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='byAppId')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization',
         [ValidateRange(0,1000)]
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipelineByPropertyName=$true)]
         [int]
         $LimitResultPages,
-        [Parameter(Mandatory=$false,ParameterSetName='query')]
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [Parameter(Mandatory=$false,ParameterSetName='displayName')]
-        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName')]
+        [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='appDisplayName',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
         [int]
         $Top
@@ -1597,26 +1600,26 @@ Function Remove-AzureADGraphObject
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='object')]
     param
     (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='object')]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [Object[]]
         $Object,
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id')]
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [string[]]
         $ObjectId,
-        [Parameter(Mandatory=$true,ParameterSetName='id')]
-        [Parameter(Mandatory=$true,ParameterSetName='object')]
+        [Parameter(Mandatory=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [string]
         $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='id')]
-        [Parameter(Mandatory=$false,ParameterSetName='object')]
+        [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]
         $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='id')]
-        [Parameter(Mandatory=$false,ParameterSetName='object')]
+        [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [String]
         $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ParameterSetName='id')]
-        [Parameter(Mandatory=$false,ParameterSetName='object')]
+        [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [String]
         $TenantName='myOrganization'                        
     )
@@ -1636,13 +1639,275 @@ Function Remove-AzureADGraphObject
             try
             {
                 $GraphUriBld.Path="$TenantName/directoryObjects/$Id"
-                $Result=Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -Method Delete -AdditionalHeaders $Headers `
-                    -ContentType 'application/json' -AccessToken $AccessToken
+                Invoke-AzureADGraphRequest -Uri $GraphUriBld.Uri -Method Delete -AdditionalHeaders $Headers `
+                    -ContentType 'application/json' -AccessToken $AccessToken | Out-Null
             }
             catch
             {
                 Write-Warning "[Remove-AzureADGraphObject] Error removing $Id $GraphApiVersion $_"
             }
+        }
+    }
+}
+
+Function New-AzureADGraphApplication
+{
+    [CmdletBinding()]
+    param
+    (
+
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [object[]]
+        $Application,
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+            $GraphUriBld.Path="$TenantName/applications"
+            $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        foreach ($item in $Application)
+        {
+            $RequestParams=@{
+                Uri=$GraphUriBld.Uri;
+                AccessToken=$AccessToken;
+                Method='POST'
+                ContentType='application/json';
+                Body=$item;
+            }
+            $NewApp=Invoke-AzureADGraphRequest @RequestParams
+            Write-Output $NewApp
+        }
+    }
+}
+
+Function ConvertFromSecureString
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [SecureString[]]
+        $InputObject
+    )
+    PROCESS
+    {
+        foreach ($item in $InputObject)
+        {
+            $ValuePtr=[System.IntPtr]::Zero
+            try
+            {
+                $ValuePtr=[System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($item)
+                Write-Output $([System.Runtime.InteropServices.Marshal]::PtrToStringUni($ValuePtr))
+            }
+            finally {
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ValuePtr)
+            }    
+        }
+    }
+}
+
+Function New-AzureADGraphUser
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [object[]]
+        $User,
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [bool]
+        $AccountEnabled,        
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $DisplayName,
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $UserPrincipalName,
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [securestring]
+        $Password, 
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [bool]
+        $ForcePasswordChange,          
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $MailNickName,
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+            $GraphUriBld.Path="$TenantName/users"
+            $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($PSCmdlet.ParameterSetName -eq 'explicit')
+        {
+            $PasswordProfile=[ordered]@{
+                'password'=$($Password|ConvertFromSecureString);
+                'forceChangePasswordNextLogin'=$ForcePasswordChange
+            }
+            $UserProperties=[ordered]@{
+                'accountEnabled'=$AccountEnabled;
+                'displayName'=$DisplayName;
+                'mailNickname'=$MailNickName;
+                'passwordProfile'=$(New-Object -Property $PasswordProfile)
+                'userPrincipalName'=$UserPrincipalName;
+            }
+            $User=@($(New-Object -Property $UserProperties))
+        }
+        foreach ($item in $User)
+        {
+            $GraphRequestParams=@{
+                Uri=$GraphUriBld.Uri;
+                ContentType='application/json';
+                Method='POST';
+                AccessToken=$AccessToken;
+                Body=$item;
+            }
+            $NewUser=Invoke-AzureADGraphRequest @GraphRequestParams
+            Write-Output $NewUser
+        }
+    }
+}
+
+Function New-AzureADGraphGroup
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [object[]]
+        $Group,      
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $DisplayName,
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [bool]
+        $MailEnabled,
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $MailNickName,
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+            $GraphUriBld.Path="$TenantName/groups"
+            $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        if ($PSCmdlet.ParameterSetName -eq 'explicit')
+        {
+            $GroupProperties=[ordered]@{
+                'displayName'=$DisplayName;
+                'mailNickname'=$MailNickName;
+                'mailEnabled'=$MailEnabled;
+                'securityEnabled'=$true
+            }
+            $Group=@($(New-Object -Property $GroupProperties))
+        }
+        foreach ($item in $User)
+        {
+            $GraphRequestParams=@{
+                Uri=$GraphUriBld.Uri;
+                ContentType='application/json';
+                Method='POST';
+                AccessToken=$AccessToken;
+                Body=$item;
+            }
+            $NewGroup=Invoke-AzureADGraphRequest @GraphRequestParams
+            Write-Output $NewGroup
+        }
+    }
+}
+
+Function New-AzureADGraphServicePrincipal
+{
+    [CmdletBinding()]
+    param
+    (
+
+        [Parameter(Mandatory=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
+        [object[]]
+        $ServicePrincipal,
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+            $GraphUriBld.Path="$TenantName/servicePrincipals"
+            $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+        foreach ($item in $ServicePrincipal)
+        {
+            $RequestParams=@{
+                Uri=$GraphUriBld.Uri;
+                AccessToken=$AccessToken;
+                Method='POST'
+                ContentType='application/json';
+                Body=$item;
+            }
+            $NewApp=Invoke-AzureADGraphRequest @RequestParams
+            Write-Output $NewApp 
         }
     }
 }

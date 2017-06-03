@@ -74,8 +74,9 @@ FunctionsToExport = @(
         "Get-AzureADGraphPolicy","Get-AzureADGraphReport","Get-AzureADGraphReportMetadata","Get-AzureADGraphRole",
         "Get-AzureADGraphRoleTemplate","Get-AzureADGraphSigninEvent","Get-AzureADGraphUser",
         "Get-AzureADTenantDetails","Get-AzureADGraphApplication","Remove-AzureADGraphObject","Remove-AzureADGraphObject",
-        'Get-AzureADGraphServicePrincipal','Invoke-AzureADGraphRequest'
-    )
+        'Get-AzureADGraphServicePrincipal','Invoke-AzureADGraphRequest',
+        'New-AzureADGraphApplication','New-AzureADGraphUser','New-AzureADGraphServicePrincipal'
+)
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 # CmdletsToExport = @()
