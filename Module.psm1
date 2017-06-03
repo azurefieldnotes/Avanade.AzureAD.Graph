@@ -5,6 +5,33 @@
 
 #region Helper Methods
 
+Function ConvertFromSecureString
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [SecureString[]]
+        $InputObject
+    )
+    PROCESS
+    {
+        foreach ($item in $InputObject)
+        {
+            $ValuePtr=[System.IntPtr]::Zero
+            try
+            {
+                $ValuePtr=[System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($item)
+                Write-Output $([System.Runtime.InteropServices.Marshal]::PtrToStringUni($ValuePtr))
+            }
+            finally {
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ValuePtr)
+            }    
+        }
+    }
+}
+
+
 Function Invoke-AzureADGraphRequest
 {
     [CmdletBinding(ConfirmImpact='None')]
@@ -1650,77 +1677,6 @@ Function Remove-AzureADGraphObject
     }
 }
 
-Function New-AzureADGraphApplication
-{
-    [CmdletBinding()]
-    param
-    (
-
-        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [object[]]
-        $Application,
-        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $AccessToken,
-        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
-        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
-        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization'
-    )
-    BEGIN
-    {
-            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
-            $GraphUriBld.Path="$TenantName/applications"
-            $GraphUriBld.Query="api-version=$GraphApiVersion"
-    }
-    PROCESS
-    {
-        foreach ($item in $Application)
-        {
-            $RequestParams=@{
-                Uri=$GraphUriBld.Uri;
-                AccessToken=$AccessToken;
-                Method='POST'
-                ContentType='application/json';
-                Body=$item;
-            }
-            $NewApp=Invoke-AzureADGraphRequest @RequestParams
-            Write-Output $NewApp
-        }
-    }
-}
-
-Function ConvertFromSecureString
-{
-    [CmdletBinding()]
-    param
-    (
-        [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [SecureString[]]
-        $InputObject
-    )
-    PROCESS
-    {
-        foreach ($item in $InputObject)
-        {
-            $ValuePtr=[System.IntPtr]::Zero
-            try
-            {
-                $ValuePtr=[System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($item)
-                Write-Output $([System.Runtime.InteropServices.Marshal]::PtrToStringUni($ValuePtr))
-            }
-            finally {
-                [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($ValuePtr)
-            }    
-        }
-    }
-}
-
 Function New-AzureADGraphUser
 {
     [CmdletBinding()]
@@ -1897,6 +1853,12 @@ Function New-AzureADGraphServicePrincipal
     }
     PROCESS
     {
+
+        if ($PSCmdlet.ParameterSetName -eq 'explicit')
+        {
+            
+        }
+
         foreach ($item in $ServicePrincipal)
         {
             $RequestParams=@{
@@ -1908,6 +1870,57 @@ Function New-AzureADGraphServicePrincipal
             }
             $NewApp=Invoke-AzureADGraphRequest @RequestParams
             Write-Output $NewApp 
+        }
+    }
+}
+
+Function New-AzureADGraphApplication
+{
+    [CmdletBinding()]
+    param
+    (
+
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [object[]]
+        $Application,
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $TenantName='myOrganization'
+    )
+    BEGIN
+    {
+            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+            $GraphUriBld.Path="$TenantName/applications"
+            $GraphUriBld.Query="api-version=$GraphApiVersion"
+    }
+    PROCESS
+    {
+
+        if ($PSCmdlet.ParameterSetName -eq 'explicit')
+        {
+            
+        }
+
+        foreach ($item in $Application)
+        {
+            $RequestParams=@{
+                Uri=$GraphUriBld.Uri;
+                AccessToken=$AccessToken;
+                Method='POST'
+                ContentType='application/json';
+                Body=$item;
+            }
+            $NewApp=Invoke-AzureADGraphRequest @RequestParams
+            Write-Output $NewApp
         }
     }
 }
