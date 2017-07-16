@@ -1000,38 +1000,30 @@ Function Get-AzureADGraphUser
     [CmdletBinding(ConfirmImpact='None',DefaultParameterSetName='noquery')]
     param
     (
-        [Parameter(Mandatory=$false,ParameterSetName='noquery')]
-        [String[]]
-        $UserId,
+        [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
+        [String[]]$UserId,
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $Filter,
+        [String]$Filter,
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $AccessToken,
+        [String]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization',
+        [String]$TenantName='myOrganization',
         [ValidateRange(0,1000)]
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [int]
-        $LimitResultPages,
+        [int]$LimitResultPages,
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
-        [int]
-        $Top
+        [int]$Top
     )
     BEGIN
     {
@@ -1108,37 +1100,29 @@ Function Get-AzureADGraphGroup
     param
     (
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String[]]
-        $GroupId,
+        [String[]]$GroupId,
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $Filter,
+        [String]$Filter,
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $AccessToken,
+        [String]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization',
+        [String]$TenantName='myOrganization',
         [ValidateRange(0,1000)]
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
-        [int]
-        $LimitResultPages,
+        [int]$LimitResultPages,
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
-        [int]
-        $Top
+        [int]$Top
     )
     BEGIN
     {
@@ -1216,25 +1200,19 @@ Function Get-AzureADTenantDetails
     param
     (
         [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [String[]]
-        $TenantName='myOrganization',        
+        [String[]]$TenantName='myOrganization',        
         [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $AccessToken,
+        [String]$AccessToken,
         [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [ValidateRange(0,1000)]
         [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
-        [int]
-        $LimitResultPages,
+        [int]$LimitResultPages,
         [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
-        [int]
-        $Top
+        [int]$Top
     )
     BEGIN
     {
@@ -1290,57 +1268,47 @@ Function Get-AzureADGraphApplication
     param
     (
         [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [Guid[]]
-        $ApplicationId,
+        [Guid[]]$ApplicationId,
         [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [System.Uri[]]
-        $ApplicationUri,
+        [System.Uri[]]$ApplicationUri,
         [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [System.String[]]
-        $DisplayName,           
+        [System.String[]]$DisplayName,           
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $Filter,
+        [String]$Filter,
         [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $AccessToken,
+        [String]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='byAppUri',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='byAppId',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization',
+        [String]$TenantName='myOrganization',
         [ValidateRange(0,1000)]
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
-        [int]
-        $LimitResultPages,
+        [int]$LimitResultPages,
         [Parameter(Mandatory=$false,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='displayName',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(0,1000)]
-        [int]
-        $Top
+        [int]$Top
     )
     BEGIN
     {
@@ -1628,27 +1596,21 @@ Function Remove-AzureADGraphObject
     param
     (
         [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [Object[]]
-        $Object,
+        [Object[]]$Object,
         [Parameter(Mandatory=$true,ValueFromPipeline=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
-        [string[]]
-        $ObjectId,
+        [string[]]$ObjectId,
         [Parameter(Mandatory=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $AccessToken,
+        [string]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization'                        
+        [String]$TenantName='myOrganization'                        
     )
     BEGIN
     {
@@ -1683,41 +1645,30 @@ Function New-AzureADGraphUser
     param
     (
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [object[]]
-        $User,
+        [object[]]$User,
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [bool]
-        $AccountEnabled,        
+        [bool]$AccountEnabled,        
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $DisplayName,
+        [string]$DisplayName,
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $UserPrincipalName,
+        [string]$UserPrincipalName,
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [securestring]
-        $Password, 
+        [securestring]$Password, 
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [bool]
-        $ForcePasswordChange,          
+        [bool]$ForcePasswordChange,          
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $MailNickName,
+        [string]$MailNickName,
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $AccessToken,
+        [string]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization'
+        [String]$TenantName='myOrganization'
     )
     BEGIN
     {
@@ -1763,32 +1714,24 @@ Function New-AzureADGraphGroup
     param
     (
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [object[]]
-        $Group,      
+        [object[]]$Group,      
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $DisplayName,
+        [string]$DisplayName,
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [bool]
-        $MailEnabled,
+        [bool]$MailEnabled,
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $MailNickName,
+        [string]$MailNickName,
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $AccessToken,
+        [string]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization'
+        [String]$TenantName='myOrganization'
     )
     BEGIN
     {
@@ -1830,26 +1773,21 @@ Function New-AzureADGraphServicePrincipal
     (
 
         [Parameter(Mandatory=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
-        [object[]]
-        $ServicePrincipal,
+        [object[]]$ServicePrincipal,
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [string]
-        $AccessToken,
+        [string]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [System.Uri]
-        $GraphApiEndpoint='https://graph.windows.net',
+        [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $GraphApiVersion='beta',
+        [String]$GraphApiVersion='beta',
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $TenantName='myOrganization'
+        [String]$TenantName='myOrganization'
     )
     BEGIN
     {
-            $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
-            $GraphUriBld.Path="$TenantName/servicePrincipals"
-            $GraphUriBld.Query="api-version=$GraphApiVersion"
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Path="$TenantName/servicePrincipals"
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
     }
     PROCESS
     {
