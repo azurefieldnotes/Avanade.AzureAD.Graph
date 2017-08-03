@@ -3,6 +3,47 @@
     Simple REST Wrappers for the Azure AD Graph
 #>
 
+#region Enums
+
+$Global:Azure_ADGraph_Enums=@{
+    'RoleAssignmentPrincipalTypes'=@{
+        'ServicePrincipal'='ServicePrincipal';
+        'User'='User';
+        'Group'='Group';
+    };
+    'PermissionType'=@{
+        'Application'='Application';
+        'Delegated'='Delegated'
+    };
+}
+
+$Global:Azure_ADGraph_WelknownIds=@{
+    'Permissions' = [ordered]@{
+        AccessDirectoryAsSignedInUser      = "a42657d6-7f20-40e3-b6f0-cee03008a62a"
+        EnableSignOnAndReadUserProfiles    = "311a71cc-e848-46a1-bdf8-97ff7156d8e6"
+        ReadAllGroups                      = "6234d376-f627-4f0f-90e0-dff25c5211a3"
+        ReadAllUsersBasicProfile           = "cba73afc-7f69-4d86-8450-4978e04ecd1a"
+        ReadAllUsersFullProfile            = "c582532d-9d9e-43bd-a97c-2667a28ce295"
+        ReadDirectoryData                  = "5778995a-e1bf-45b8-affa-663a9f3f4d04"
+        ManageAppsThatThisAppCreatesOrOwns = "824c81eb-e3f8-4ee6-8f6d-de7f50d565b7"
+    };
+    'PermissionScopes' = [ordered]@{
+        AccessDirectoryAsSignedInUser      = "Directory.AccessAsUser.All"
+        EnableSignOnAndReadUserProfiles    = "User.Read"
+        ReadAllGroups                      = "Group.Read.All"
+        ReadAllUsersBasicProfile           = "User.ReadBasic.All"
+        ReadAllUsersFullProfile            = "User.Read.All"
+        ReadDirectoryData                  = "Directory.Read.All"
+        ManageAppsThatThisAppCreatesOrOwns = "Application.ReadWrite.OwnedBy"
+    };
+    'OAuthConsentTypes'=@{
+        'AllPrincipals'='AllPrincipals'
+        'Principal'='Principal'
+    };
+}
+
+#endregion
+
 #region Helper Methods
 
 Function ConvertFromSecureString
@@ -89,7 +130,7 @@ Function Invoke-AzureADGraphRequest
         }
         if ($Body -ne $null)
         {
-            $RequestParams['Body']=$Body
+            $RequestParams['Body']=$Body|ConvertTo-Json -Depth 10
         }
         $RequestResult=$null
         try
@@ -1272,7 +1313,8 @@ Function Get-AzureADGraphApplication
         [Parameter(Mandatory=$true,ParameterSetName='byAppUri',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [System.Uri[]]$ApplicationUri,
         [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-        [System.String[]]$DisplayName,           
+        [System.String[]]$DisplayName,
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]$Filter,
         [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
@@ -1658,6 +1700,7 @@ Function New-AzureADGraphUser
         [bool]$ForcePasswordChange,          
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [string]$MailNickName,
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [string]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
@@ -1688,10 +1731,10 @@ Function New-AzureADGraphUser
                 'accountEnabled'=$AccountEnabled;
                 'displayName'=$DisplayName;
                 'mailNickname'=$MailNickName;
-                'passwordProfile'=$(New-Object -Property $PasswordProfile)
+                'passwordProfile'=$(New-Object psobject -Property $PasswordProfile)
                 'userPrincipalName'=$UserPrincipalName;
             }
-            $User=@($(New-Object -Property $UserProperties))
+            $User=@($(New-Object psobject -Property $UserProperties))
         }
         foreach ($item in $User)
         {
@@ -1721,6 +1764,7 @@ Function New-AzureADGraphGroup
         [bool]$MailEnabled,
         [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [string]$MailNickName,
+        [Parameter(Mandatory=$true,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [string]$AccessToken,
         [Parameter(Mandatory=$false,ParameterSetName='explicit',ValueFromPipelineByPropertyName=$true)]
@@ -1749,7 +1793,7 @@ Function New-AzureADGraphGroup
                 'mailEnabled'=$MailEnabled;
                 'securityEnabled'=$true
             }
-            $Group=@($(New-Object -Property $GroupProperties))
+            $Group=@($(New-Object psobject -Property $GroupProperties))
         }
         foreach ($item in $User)
         {
@@ -1774,12 +1818,16 @@ Function New-AzureADGraphServicePrincipal
 
         [Parameter(Mandatory=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [object[]]$ServicePrincipal,
+        [Parameter(Mandatory=$true,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [string]$AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [System.Uri]$GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [String]$GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='id',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
         [String]$TenantName='myOrganization'
     )
@@ -1791,12 +1839,6 @@ Function New-AzureADGraphServicePrincipal
     }
     PROCESS
     {
-
-        if ($PSCmdlet.ParameterSetName -eq 'explicit')
-        {
-            
-        }
-
         foreach ($item in $ServicePrincipal)
         {
             $RequestParams=@{
@@ -1841,13 +1883,7 @@ Function New-AzureADGraphApplication
             $GraphUriBld.Query="api-version=$GraphApiVersion"
     }
     PROCESS
-    {
-
-        if ($PSCmdlet.ParameterSetName -eq 'explicit')
-        {
-            
-        }
-
+    {s
         foreach ($item in $Application)
         {
             $RequestParams=@{
@@ -1860,6 +1896,160 @@ Function New-AzureADGraphApplication
             $NewApp=Invoke-AzureADGraphRequest @RequestParams
             Write-Output $NewApp
         }
+    }
+}
+
+function New-AzureADGraphOauthPermissionGrant
+{
+    [CmdletBinding()]
+    param
+    (
+        
+    )
+    
+    begin
+    {
+    }
+    
+    process
+    {
+    }
+    
+    end
+    {
+    }
+}
+
+#endregion
+
+#region Request Body Helpers
+function New-AzureADGraphUserParameter
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [bool]$AccountEnabled,        
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [string]$DisplayName,
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [string]$UserPrincipalName,
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [securestring]$Password, 
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
+        [bool]$ForcePasswordChange,          
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [string]$MailNickName        
+    )
+    PROCESS
+    {
+        $PasswordProfile=[ordered]@{
+            'password'=$($Password|ConvertFromSecureString);
+            'forceChangePasswordNextLogin'=$ForcePasswordChange
+        }
+        $UserProperties=[ordered]@{
+            'accountEnabled'=$AccountEnabled;
+            'displayName'=$DisplayName;
+            'mailNickname'=$MailNickName;
+            'passwordProfile'=$(New-Object psobject -Property $PasswordProfile)
+            'userPrincipalName'=$UserPrincipalName;
+        }
+        $User=@($(New-Object psobject -Property $UserProperties))
+        Write-Output $User        
+    }
+}
+
+function New-AzureADGraphGroupParameter
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [bool]$AccountEnabled,        
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [string]$DisplayName,
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [securestring]$Password, 
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
+        [bool]$ForcePasswordChange,          
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
+        [string]$MailNickName,
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true)]
+        [bool]$SecurityEnabled=$true              
+    )
+    process
+    {
+        $GroupProperties=[ordered]@{
+            'displayName'=$DisplayName;
+            'mailNickname'=$MailNickName;
+            'mailEnabled'=$MailEnabled;
+            'securityEnabled'=$SecurityEnabled
+        }
+        $Group=New-Object psobject -Property $GroupProperties
+        Write-Output $Group
+    }
+}
+
+function New-AzureADGraphServicePrincipalParameter
+{
+    [CmdletBinding()]
+    param
+    (
+        
+    )
+    
+    begin
+    {
+    }
+    
+    process
+    {
+    }
+    
+    end
+    {
+    }
+}
+
+function New-AzureADGraphApplicationParameter
+{
+    [CmdletBinding()]
+    param
+    (
+        
+    )
+    
+    begin
+    {
+    }
+    
+    process
+    {
+    }
+    
+    end
+    {
+    }
+}
+
+function New-AzureADGraphOauthPermissionGrantParameter
+{
+    [CmdletBinding()]
+    param
+    (
+        
+    )
+    
+    begin
+    {
+    }
+    
+    process
+    {
+    }
+    
+    end
+    {
     }
 }
 
