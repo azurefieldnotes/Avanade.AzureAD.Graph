@@ -1883,7 +1883,7 @@ Function New-AzureADGraphApplication
             $GraphUriBld.Query="api-version=$GraphApiVersion"
     }
     PROCESS
-    {s
+    {
         foreach ($item in $Application)
         {
             $RequestParams=@{
@@ -1899,24 +1899,49 @@ Function New-AzureADGraphApplication
     }
 }
 
-function New-AzureADGraphOauthPermissionGrant
+Function New-AzureADGraphOauthPermissionGrant
 {
     [CmdletBinding()]
     param
     (
-        
+
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [object[]]
+        $Grant,
+        [Parameter(Mandatory=$true,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [System.Uri]
+        $GraphApiEndpoint='https://graph.windows.net',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $GraphApiVersion='beta',
+        [Parameter(Mandatory=$false,ParameterSetName='object',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $TenantName='myOrganization'
     )
     
-    begin
+    BEGIN
     {
+        $GraphUriBld=New-Object System.UriBuilder($GraphApiEndpoint)
+        $GraphUriBld.Path="$TenantName/oauth2PermissionGrants"
+        $GraphUriBld.Query="api-version=$GraphApiVersion"
     }
-    
-    process
+    PROCESS
     {
-    }
-    
-    end
-    {
+        foreach ($item in $Grant)
+        {
+            $RequestParams=@{
+                Uri=$GraphUriBld.Uri;
+                AccessToken=$AccessToken;
+                Method='POST'
+                ContentType='application/json';
+                Body=$item;
+            }
+            $NewGrant=Invoke-AzureADGraphRequest @RequestParams
+            Write-Output $NewGrant           
+        }
     }
 }
 
