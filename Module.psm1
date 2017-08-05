@@ -1314,7 +1314,6 @@ Function Get-AzureADGraphApplication
         [System.Uri[]]$ApplicationUri,
         [Parameter(Mandatory=$true,ParameterSetName='displayName',ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [System.String[]]$DisplayName,
-        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='query',ValueFromPipelineByPropertyName=$true)]
         [String]$Filter,
         [Parameter(Mandatory=$true,ParameterSetName='noquery',ValueFromPipelineByPropertyName=$true)]
